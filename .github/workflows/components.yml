@@ -1,0 +1,49 @@
+name: Check for new components
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  run-diff-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Important for full diff
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Get changed files against main
+        id: diff
+        run: |
+          git fetch origin main
+          DIFF_FILES=$(git diff --name-only origin/main...HEAD)
+          echo "$DIFF_FILES"
+          echo "diff_files<<EOF" >> $GITHUB_OUTPUT
+          echo "$DIFF_FILES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Clone automation repo
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git clone https://$GITHUB_TOKEN@github.com/BigstoneDevelopment/component-automation automation
+          cd automation
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run script with diff files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "${{ steps.diff.outputs.diff_files }}" | tr '\n' ' ' | xargs python3 main.py
